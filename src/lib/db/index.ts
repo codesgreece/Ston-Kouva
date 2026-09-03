@@ -1,1 +1,7 @@
-export { getPool, query, withTransaction, checkDatabaseConnection } from "./pool";
+export {
+  getPool,
+  query,
+  withTransaction,
+  checkDatabaseConnection,
+  hasDatabaseUrl,
+} from "./pool";

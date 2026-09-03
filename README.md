@@ -98,6 +98,40 @@ npm run start
 
 Χρησιμοποίησε ισχυρό `SESSION_SECRET`, `NODE_ENV=production`, και HTTPS (secure cookies).
 
+## 8b. Vercel deploy (διόρθωση 404)
+
+Αν το `https://ston-kouva.vercel.app` δείχνει **404: NOT_FOUND** από τη Vercel (όχι από την εφαρμογή), το production domain δεν είναι συνδεδεμένο ή το Deployment Protection μπλοκάρει το κοινό.
+
+### Βήματα στο Vercel Dashboard
+
+1. Άνοιξε [Project → ston-kouva](https://vercel.com/codesgreeces-projects/ston-kouva)
+2. **Settings → Domains**
+   - Πρόσθεσε / επιβεβαίωσε: `ston-kouva.vercel.app`
+   - Production branch: `main`
+3. **Settings → Deployment Protection**
+   - Για Production: **Disabled** (ή Standard Protection off)
+   - Αλλιώς το site ζητάει Vercel login και φαίνεται «σπασμένο» σε κινητό
+4. **Settings → Environment Variables** (Production):
+
+```env
+DATABASE_URL=postgresql://…   # δικός σου Postgres με δημόσιο host + SSL
+SESSION_SECRET=long-random-secret
+APP_URL=https://ston-kouva.vercel.app
+SOFASCORE_BASE_URL=https://api.sofascore.com/api/v1
+NODE_ENV=production
+DATABASE_SSL=true
+```
+
+5. **Deployments → … → Redeploy** το τελευταίο production deployment από `main`
+6. Τρέξε migrations στο production DB (από τοπικό μηχάνημα με το production `DATABASE_URL`):
+
+```bash
+DATABASE_URL='postgresql://…' npm run db:migrate
+DATABASE_URL='postgresql://…' npm run db:seed   # μόνο αν θες demo data
+```
+
+> Το Vercel deployment URL τύπου `ston-kouva-xxxx-codesgreeces-projects.vercel.app` μπορεί να δουλεύει πίσω από SSO, ενώ το `ston-kouva.vercel.app` 404-άρει μέχρι να συνδεθεί το domain.
+
 ## 9. Realtime server
 
 Το Phase 1 χρησιμοποιεί HTTP + refresh για chat. Η αρχιτεκτονική για production realtime (Phase 3):

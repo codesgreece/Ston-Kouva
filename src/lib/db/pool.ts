@@ -5,6 +5,19 @@ declare global {
   var __stonKouvaPgPool: Pool | undefined;
 }
 
+function shouldUseSsl(connectionString: string): boolean {
+  if (process.env.DATABASE_SSL === "true") return true;
+  if (process.env.DATABASE_SSL === "false") return false;
+  // Managed Postgres on Vercel/Neon/Railway/etc. usually requires TLS
+  return (
+    process.env.NODE_ENV === "production" ||
+    /sslmode=require/i.test(connectionString) ||
+    /\.neon\.tech|\.supabase\.co|\.render\.com|\.railway\.app|\.vercel-storage\.com/i.test(
+      connectionString,
+    )
+  );
+}
+
 function createPool(): Pool {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -13,9 +26,12 @@ function createPool(): Pool {
 
   return new Pool({
     connectionString,
-    max: 20,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 8_000,
+    ssl: shouldUseSsl(connectionString)
+      ? { rejectUnauthorized: false }
+      : undefined,
   });
 }
 
@@ -24,6 +40,10 @@ export function getPool(): Pool {
     global.__stonKouvaPgPool = createPool();
   }
   return global.__stonKouvaPgPool;
+}
+
+export function hasDatabaseUrl(): boolean {
+  return Boolean(process.env.DATABASE_URL);
 }
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
@@ -56,6 +76,13 @@ export async function checkDatabaseConnection(): Promise<{
   error?: string;
 }> {
   const started = Date.now();
+  if (!hasDatabaseUrl()) {
+    return {
+      ok: false,
+      latencyMs: 0,
+      error: "DATABASE_URL is not set",
+    };
+  }
   try {
     await query("SELECT 1 AS ok");
     return { ok: true, latencyMs: Date.now() - started };
