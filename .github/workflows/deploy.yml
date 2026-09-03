@@ -16,7 +16,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Deploy to Vercel
-        run: npx vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}"
         env:
           VERCEL_ORG_ID: team_HD8QWUNSbZM51bLkdj0lj5lg
           VERCEL_PROJECT_ID: prj_AhknEXw0AiLLau9hrruiq2CMpkuL
