@@ -80,9 +80,14 @@ function mapOLDBStatus(match: OLDBMatch): ReturnType<typeof mapSofaScoreStatus> 
   const now = Date.now();
   const start = new Date(match.matchDateTimeUTC).getTime();
   const elapsedMin = (now - start) / 60_000;
-  if (start > now) return "upcoming";
-  if (elapsedMin < 95) return "live";
-  return "live";
+  if (start > now + 5 * 60_000) return "upcoming"; // not started yet
+  if (elapsedMin < 0) return "upcoming";
+  // Only treat as live if started within the last 110 minutes
+  // If more than 110 min ago and not marked finished → OpenLigaDB data is stale → skip as upcoming
+  if (elapsedMin > 110) return "upcoming";
+  if (elapsedMin < 48) return "live"; // first half or start of second
+  if (elapsedMin < 52) return "halftime";
+  return "live"; // second half
 }
 
 function extractScore(match: OLDBMatch): { home: number; away: number } {
@@ -188,8 +193,8 @@ export const OPENLIGADB_LEAGUES: Array<{
   { shortcut: "bl1", season: 2026, name: "1. Fußball-Bundesliga 2026/2027" },
   { shortcut: "bl2", season: 2026, name: "2. Fußball-Bundesliga 2026/2027" },
   { shortcut: "dfb", season: 2025, name: "DFB Pokal 2025/2026" },
-  { shortcut: "ucl2025", season: 2025, name: "Champions League 2025/26" },
   { shortcut: "la1", season: 2026, name: "LaLiga 2026/2027" },
+  // UCL 2025/26 excluded: OpenLigaDB does not update match results reliably
 ];
 
 /**
