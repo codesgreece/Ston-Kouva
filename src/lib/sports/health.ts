@@ -34,13 +34,13 @@ export async function getSportsHealth(): Promise<SportsHealth> {
          FROM sports_sync_state ORDER BY sync_key`,
       ),
       query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c FROM matches WHERE is_live = TRUE AND external_source = 'sofascore'`,
+        `SELECT COUNT(*)::text AS c FROM matches WHERE is_live = TRUE AND external_source IN ('sofascore','openligadb')`,
       ),
       query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c FROM matches WHERE is_upcoming = TRUE AND external_source = 'sofascore'`,
+        `SELECT COUNT(*)::text AS c FROM matches WHERE is_upcoming = TRUE AND external_source IN ('sofascore','openligadb')`,
       ),
       query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c FROM matches WHERE external_source = 'sofascore'`,
+        `SELECT COUNT(*)::text AS c FROM matches WHERE external_source IN ('sofascore','openligadb')`,
       ),
       query<{ last_error: string | null; last_attempt_at: Date | null }>(
         `SELECT last_error, last_attempt_at FROM sports_sync_state
@@ -50,7 +50,9 @@ export async function getSportsHealth(): Promise<SportsHealth> {
     ]);
 
   const liveSync = syncStates.rows.find((r) => r.sync_key.startsWith("live:"));
-  const rangeSync = syncStates.rows.find((r) => r.sync_key.startsWith("range:") || r.sync_key.startsWith("scheduled:"));
+  const rangeSync = syncStates.rows.find(
+    (r) => r.sync_key.startsWith("range:") || r.sync_key.startsWith("scheduled:"),
+  );
 
   const lastSuccess = liveSync?.last_success_at || rangeSync?.last_success_at;
   const lastSuccessMs = lastSuccess ? lastSuccess.getTime() : 0;

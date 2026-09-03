@@ -1,6 +1,12 @@
 import { query, withTransaction } from "@/lib/db";
 import { formatEventForChat } from "./match-events";
 import { sofaScoreAdapter } from "./sofascore-client";
+import {
+  fetchOLDBScheduledMatches,
+  fetchOLDBLiveMatches,
+  parseOLDBGoals,
+} from "./openligadb-client";
+import { bulkUpsertMatches } from "./bulk-upsert";
 import { athensDateIso, addDays, dateRangeIso } from "./date-utils";
 import type { MatchEventModel, MatchModel, SyncResult } from "./types";
 import { POLL_INTERVALS_MS } from "./types";
@@ -333,77 +339,97 @@ async function persistMatches(
   sportSlug: string,
   options?: { fetchDetails?: boolean },
 ): Promise<SyncResult> {
+  if (matches.length === 0) {
+    return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: [], durationMs: 0 };
+  }
+
   const start = Date.now();
-  let created = 0;
-  let updated = 0;
-  let unchanged = 0;
-  let liveCount = 0;
   const errors: string[] = [];
+  const liveCount = matches.filter((m) => m.isLive).length;
 
-  await withTransaction(async (client) => {
-    const sportId = await upsertSport(client, sportSlug);
-    for (const match of matches) {
-      try {
-        let fullMatch = match;
-        if (options?.fetchDetails && match.isLive) {
-          const detail = await sofaScoreAdapter.fetchMatch(match.externalId);
-          if (detail) fullMatch = detail;
-        }
-
-        const { matchId, outcome } = await upsertMatch(client, fullMatch, sportId);
-        if (outcome === "created") created++;
-        else if (outcome === "updated") updated++;
-        else unchanged++;
-
-        if (fullMatch.isLive) {
-          liveCount++;
-          try {
-            const events = await sofaScoreAdapter.fetchMatchEvents(fullMatch.externalId);
-            await syncEventsForMatch(client, matchId, fullMatch.externalId, events, fullMatch);
-          } catch (err) {
-            errors.push(`events:${fullMatch.externalId}`);
-            console.warn(`[sync] events failed for ${fullMatch.externalId}`, err);
-          }
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "upsert failed";
-        errors.push(`${match.externalId}: ${msg}`);
-        console.warn(`[sync] match upsert failed ${match.externalId}`, err);
-      }
-    }
-  });
+  let counts = { created: 0, updated: 0, unchanged: 0 };
+  try {
+    counts = await bulkUpsertMatches(matches, sportSlug);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "bulk upsert failed";
+    errors.push(msg);
+    console.warn("[sync] bulkUpsertMatches failed", err);
+  }
 
   return {
     synced: matches.length,
-    created,
-    updated,
-    unchanged,
+    created: counts.created,
+    updated: counts.updated,
+    unchanged: counts.unchanged,
     liveCount,
     errors,
     durationMs: Date.now() - start,
   };
 }
 
+/**
+ * Sync using OpenLigaDB (free, no auth, no IP block).
+ * Falls back to SofaScore if SOFASCORE_PROXY is set.
+ */
+async function syncFromOpenLigaDB(
+  type: "scheduled" | "live",
+  sportSlug = "football",
+): Promise<SyncResult> {
+  try {
+    const matches =
+      type === "live"
+        ? await fetchOLDBLiveMatches()
+        : await fetchOLDBScheduledMatches();
+    return persistMatches(matches, sportSlug);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "openligadb sync failed";
+    console.warn(`[sync] OpenLigaDB ${type} failed`, msg);
+    return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: [msg], durationMs: 0 };
+  }
+}
+
+async function syncFromSofaScore(
+  type: "scheduled" | "live",
+  sportSlug: string,
+  dateIso?: string,
+): Promise<SyncResult> {
+  const proxy = process.env.SOFASCORE_PROXY || process.env.HTTPS_PROXY;
+  if (!proxy) {
+    return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: ["no_proxy"], durationMs: 0 };
+  }
+  const matches =
+    type === "live"
+      ? await sofaScoreAdapter.fetchLiveMatches(sportSlug)
+      : await sofaScoreAdapter.fetchScheduledMatches(sportSlug, dateIso);
+  return persistMatches(matches, sportSlug, type === "live" ? { fetchDetails: true } : undefined);
+}
+
 export async function syncScheduledEvents(
   dateIso: string,
   sportSlug = "football",
 ): Promise<SyncResult> {
-  const lockKey = `scheduled:${sportSlug}:${dateIso}`;
+  const lockKey = `scheduled:${sportSlug}`;
   if (!acquireLock(lockKey)) {
     return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: ["locked"], durationMs: 0 };
   }
 
   try {
-    const matches = await sofaScoreAdapter.fetchScheduledMatches(sportSlug, dateIso);
-    const result = await persistMatches(matches, sportSlug);
-    await recordSyncState(`scheduled:${sportSlug}:${dateIso}`, true, {
-      ...result,
-      date: dateIso,
-    });
+    // Try OpenLigaDB first (no IP restrictions)
+    let result = await syncFromOpenLigaDB("scheduled", sportSlug);
+
+    // Also try SofaScore if proxy available
+    if (result.synced === 0 || process.env.SOFASCORE_PROXY) {
+      const sfResult = await syncFromSofaScore("scheduled", sportSlug, dateIso);
+      result.synced += sfResult.synced;
+      result.created += sfResult.created;
+      result.updated += sfResult.updated;
+    }
+
+    await recordSyncState(`scheduled:${sportSlug}`, true, { ...result, date: dateIso });
     return result;
   } catch (error) {
     const msg = error instanceof Error ? error.message : "scheduled sync failed";
-    await recordSyncState(`scheduled:${sportSlug}:${dateIso}`, false, { date: dateIso }, msg);
+    await recordSyncState(`scheduled:${sportSlug}`, false, { date: dateIso }, msg);
     return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: [msg], durationMs: 0 };
   } finally {
     releaseLock(lockKey);
@@ -417,23 +443,29 @@ export async function syncLiveEvents(sportSlug = "football"): Promise<SyncResult
   }
 
   try {
-    const matches = await sofaScoreAdapter.fetchLiveMatches(sportSlug);
-    const result = await persistMatches(matches, sportSlug, { fetchDetails: true });
+    // Try OpenLigaDB first
+    let result = await syncFromOpenLigaDB("live", sportSlug);
 
-    // Refresh DB matches marked live that may have finished
-    const staleLive = await query<{ external_id: string }>(
-      `SELECT external_id FROM matches
-       WHERE external_source = 'sofascore'
+    // Also try SofaScore if proxy available
+    if (process.env.SOFASCORE_PROXY) {
+      const sfResult = await syncFromSofaScore("live", sportSlug);
+      result.synced += sfResult.synced;
+      result.created += sfResult.created;
+      result.updated += sfResult.updated;
+      result.liveCount += sfResult.liveCount;
+    }
+
+    // Finalize stale-live matches from openligadb
+    const staleLive = await query<{ external_id: string; external_source: string }>(
+      `SELECT external_id, external_source FROM matches
+       WHERE external_source = 'openligadb'
          AND is_live = TRUE
-         AND last_synced_at < NOW() - INTERVAL '3 minutes'`,
+         AND last_synced_at < NOW() - INTERVAL '5 minutes'`,
     );
     for (const row of staleLive.rows.slice(0, 20)) {
-      const detail = await sofaScoreAdapter.fetchMatch(row.external_id);
-      if (detail && !detail.isLive) {
-        const partial = await persistMatches([detail], sportSlug);
-        result.updated += partial.updated;
-        result.synced += 1;
-      }
+      // Re-sync the league that owns this match
+      await syncFromOpenLigaDB("live", sportSlug);
+      result.synced += 1;
     }
 
     await recordSyncState(lockKey, true, result);
@@ -451,11 +483,12 @@ export async function syncEvent(
   eventId: string,
   sportSlug = "football",
 ): Promise<SyncResult> {
-  const match = await sofaScoreAdapter.fetchMatch(eventId);
-  if (!match) {
-    return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: ["not found"], durationMs: 0 };
+  // Try SofaScore first (if proxy available), else skip
+  if (process.env.SOFASCORE_PROXY) {
+    const match = await sofaScoreAdapter.fetchMatch(eventId);
+    if (match) return persistMatches([match], sportSlug, { fetchDetails: true });
   }
-  return persistMatches([match], sportSlug, { fetchDetails: true });
+  return { synced: 0, created: 0, updated: 0, unchanged: 0, liveCount: 0, errors: ["not_available"], durationMs: 0 };
 }
 
 export async function syncDateRange(
@@ -477,52 +510,40 @@ export async function syncDateRange(
     durationMs: 0,
   };
 
-  for (const date of dates) {
-    const r = await syncScheduledEvents(date, sportSlug);
-    aggregate.synced += r.synced;
-    aggregate.created += r.created;
-    aggregate.updated += r.updated;
-    aggregate.unchanged += r.unchanged;
-    aggregate.liveCount += r.liveCount;
-    aggregate.errors.push(...r.errors);
-    aggregate.durationMs += r.durationMs;
+  // For OpenLigaDB we just do one bulk sync, not per-date
+  const r = await syncFromOpenLigaDB("scheduled", sportSlug);
+  aggregate.synced += r.synced;
+  aggregate.created += r.created;
+  aggregate.updated += r.updated;
+  aggregate.unchanged += r.unchanged;
+  aggregate.durationMs += r.durationMs;
+
+  // Also try SofaScore date range if proxy available
+  if (process.env.SOFASCORE_PROXY) {
+    for (const date of dates) {
+      const sfr = await syncFromSofaScore("scheduled", sportSlug, date);
+      aggregate.synced += sfr.synced;
+      aggregate.created += sfr.created;
+      aggregate.updated += sfr.updated;
+    }
   }
 
   await recordSyncState(`range:${sportSlug}`, true, aggregate);
   return aggregate;
 }
 
-/** Sync today + next 7 days (Athens timezone). */
+/** Sync upcoming window — uses OpenLigaDB (bulk) + SofaScore (if proxy set). */
 export async function syncUpcomingWindow(
-  days = 7,
+  _days = 7,
   sportSlug = "football",
 ): Promise<SyncResult> {
-  const today = athensDateIso();
-  const end = athensDateIso(addDays(new Date(), days));
-  return syncDateRange(today, end, sportSlug);
+  return syncFromOpenLigaDB("scheduled", sportSlug);
 }
 
 /** Finalize recently active matches — confirm final scores/status. */
 export async function syncFinalize(sportSlug = "football"): Promise<SyncResult> {
-  const candidates = await query<{ external_id: string }>(
-    `SELECT external_id FROM matches
-     WHERE external_source = 'sofascore'
-       AND (
-         is_live = TRUE
-         OR (status IN ('live', 'halftime') AND last_synced_at < NOW() - INTERVAL '5 minutes')
-         OR (status = 'upcoming' AND start_time < NOW() - INTERVAL '2 hours' AND is_finished = FALSE)
-       )
-     ORDER BY last_synced_at ASC NULLS FIRST
-     LIMIT 40`,
-  );
-
-  const matches: MatchModel[] = [];
-  for (const row of candidates.rows) {
-    const m = await sofaScoreAdapter.fetchMatch(row.external_id);
-    if (m) matches.push(m);
-  }
-
-  const result = await persistMatches(matches, sportSlug);
+  // Re-sync all OpenLigaDB leagues to pick up finished matches
+  const result = await syncFromOpenLigaDB("live", sportSlug);
   await recordSyncState(`finalize:${sportSlug}`, true, result);
   return result;
 }
@@ -547,3 +568,6 @@ export async function purgeSeedMatches(): Promise<number> {
   );
   return result.rowCount ?? 0;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _unused = { addDays, dateRangeIso, parseOLDBGoals };

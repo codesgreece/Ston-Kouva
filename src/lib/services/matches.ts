@@ -137,7 +137,7 @@ export async function listMatches(params?: {
   const conditions: string[] = [];
 
   if (params?.excludeSeed !== false) {
-    conditions.push(`m.external_source = 'sofascore'`);
+    conditions.push(`m.external_source IN ('sofascore', 'openligadb')`);
   }
 
   if (params?.live) {
