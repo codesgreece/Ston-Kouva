@@ -1,0 +1,3 @@
+-- Prefer: npm run db:seed
+-- This file is a pointer for documentation only.
+-- Demo password for seeded users: password123
