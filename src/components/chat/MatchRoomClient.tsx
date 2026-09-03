@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useMatchRoomRealtime } from "@/hooks/useMatchRoomRealtime";
 import { RoomComposer } from "@/components/chat/RoomComposer";
 import { LiveBadge } from "@/components/ui/Badges";
+import { isDisplayLive } from "@/lib/sports/status-mapper";
 
 type Message = {
   id: string;
@@ -95,7 +96,7 @@ export function MatchRoomClient({
           <Link href={`/match/${matchId}`} className="text-xs text-muted hover:text-brand-2">
             ← Match
           </Link>
-          {header.status === "live" ? <LiveBadge /> : (
+          {isDisplayLive(header.status as never) ? <LiveBadge /> : (
             <span className="text-xs uppercase text-muted">{header.status}</span>
           )}
         </div>

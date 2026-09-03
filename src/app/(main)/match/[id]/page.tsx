@@ -7,6 +7,8 @@ import { getCurrentSession } from "@/lib/auth";
 import { getMatchById } from "@/lib/services/matches";
 import { listPredictions } from "@/lib/services/predictions";
 import { listFeed } from "@/lib/services/social";
+import { formatMatchTime } from "@/lib/sports/date-utils";
+import { statusLabel, isDisplayLive } from "@/lib/sports/status-mapper";
 import { query } from "@/lib/db";
 
 export default async function MatchPage({
@@ -23,14 +25,22 @@ export default async function MatchPage({
 
   const session = await getCurrentSession();
   const activeTab = tab || "overview";
+  const showLive = isDisplayLive(match.status);
+
+  const lastSyncSec = match.lastSyncedAt
+    ? Math.max(
+        0,
+        Math.floor(
+          (new Date().getTime() - new Date(match.lastSyncedAt).getTime()) / 1000,
+        ),
+      )
+    : null;
 
   let lastSyncLabel = "—";
-  if (match.lastSyncedAt) {
-    const sec = Math.max(
-      0,
-      Math.floor((Date.now() - new Date(match.lastSyncedAt).getTime()) / 1000),
-    );
-    lastSyncLabel = `Τελευταία ενημέρωση πριν από ${sec} sec`;
+  if (lastSyncSec != null) {
+    lastSyncLabel = match.isStale
+      ? `Τελευταία ενημέρωση πριν από ${lastSyncSec} sec — ενδέχεται καθυστέρηση`
+      : `Τελευταία ενημέρωση πριν από ${lastSyncSec} sec`;
   }
 
   const events = await query<{
@@ -77,17 +87,32 @@ export default async function MatchPage({
   return (
     <div className="space-y-4">
       <header className="rounded-3xl border border-border bg-surface p-5">
+        <p className="mb-2 text-center text-xs text-muted">
+          {match.competitionName || match.categoryName || "Ποδόσφαιρο"}
+          {match.startTime ? ` · ${formatMatchTime(match.startTime, { weekday: "short" })}` : ""}
+        </p>
         <div className="mb-3 flex items-center justify-between">
-          {match.status === "live" ? <LiveBadge /> : (
-            <span className="text-xs uppercase text-muted">{match.status}</span>
+          {showLive ? (
+            <LiveBadge stale={match.isStale} />
+          ) : match.status === "halftime" ? (
+            <span className="text-xs font-bold uppercase text-brand-2">Ημίχρονο</span>
+          ) : (
+            <span className="text-xs uppercase text-muted">{statusLabel(match.status)}</span>
           )}
           <span className="text-sm font-semibold text-muted">
-            {match.minute != null ? `${match.minute}'` : ""}
+            {showLive && match.minute != null
+              ? `${match.minute}'${match.injuryTime ? `+${match.injuryTime}` : ""}`
+              : ""}
           </span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
           <div>
-            <div className="text-3xl">{match.homeTeam.flagEmoji}</div>
+            {match.homeTeam.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={match.homeTeam.logoUrl} alt="" className="mx-auto h-10 w-10 object-contain" />
+            ) : (
+              <div className="text-3xl">{match.homeTeam.flagEmoji}</div>
+            )}
             <div className="mt-1 font-semibold">{home}</div>
           </div>
           <div className="font-[family-name:var(--font-display)] text-4xl font-black tabular-nums animate-score-pop">
@@ -96,11 +121,18 @@ export default async function MatchPage({
             {match.awayScore}
           </div>
           <div>
-            <div className="text-3xl">{match.awayTeam.flagEmoji}</div>
+            {match.awayTeam.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={match.awayTeam.logoUrl} alt="" className="mx-auto h-10 w-10 object-contain" />
+            ) : (
+              <div className="text-3xl">{match.awayTeam.flagEmoji}</div>
+            )}
             <div className="mt-1 font-semibold">{away}</div>
           </div>
         </div>
-        <p className="mt-3 text-center text-xs text-muted">{lastSyncLabel}</p>
+        <p className={`mt-3 text-center text-xs ${match.isStale ? "text-amber-400/80" : "text-muted"}`}>
+          {lastSyncLabel}
+        </p>
         <div className="mt-4 flex justify-center">
           <Link
             href={`/match/${id}/room`}

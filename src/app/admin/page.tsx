@@ -2,6 +2,8 @@ import { getCurrentSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { query } from "@/lib/db";
 import Link from "next/link";
+import { getSportsHealth } from "@/lib/sports/health";
+import { AdminSportsPanel } from "@/components/admin/AdminSportsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +13,11 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  const [users, live, rooms, postsToday, reports, messagesToday, activeUsers] =
+  const [users, live, rooms, postsToday, reports, messagesToday, activeUsers, sportsHealth, pendingReports] =
     await Promise.all([
       query<{ c: string }>(`SELECT COUNT(*)::text AS c FROM users`),
       query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c FROM matches WHERE status = 'live'`,
+        `SELECT COUNT(*)::text AS c FROM matches WHERE is_live = TRUE AND external_source = 'sofascore'`,
       ),
       query<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM match_rooms WHERE status = 'open'`,
@@ -32,21 +34,31 @@ export default async function AdminPage() {
       query<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM users WHERE last_seen_at > NOW() - INTERVAL '24 hours'`,
       ),
+      getSportsHealth().catch(() => ({
+        status: "ERROR" as const,
+        lastSync: null,
+        lastLiveSync: null,
+        lastFailure: null,
+        lastError: "Health unavailable",
+        liveMatches: 0,
+        upcomingMatches: 0,
+        totalSofascoreMatches: 0,
+        syncStates: [],
+      })),
+      query<{
+        id: string;
+        target_type: string;
+        category: string;
+        reason: string | null;
+        reporter_username: string;
+        created_at: Date;
+      }>(
+        `SELECT r.id, r.target_type, r.category, r.reason, r.created_at, u.username AS reporter_username
+         FROM reports r JOIN users u ON u.id = r.reporter_id
+         WHERE r.status = 'pending'
+         ORDER BY r.created_at ASC LIMIT 20`,
+      ).catch(() => ({ rows: [] as never[] })),
     ]);
-
-  const pendingReports = await query<{
-    id: string;
-    target_type: string;
-    category: string;
-    reason: string | null;
-    reporter_username: string;
-    created_at: Date;
-  }>(
-    `SELECT r.id, r.target_type, r.category, r.reason, r.created_at, u.username AS reporter_username
-     FROM reports r JOIN users u ON u.id = r.reporter_id
-     WHERE r.status = 'pending'
-     ORDER BY r.created_at ASC LIMIT 20`,
-  ).catch(() => ({ rows: [] as never[] }));
 
   const metrics = [
     { label: "Total users", value: users.rows[0]?.c ?? "0" },
@@ -95,6 +107,8 @@ export default async function AdminPage() {
         ))}
       </nav>
 
+      <AdminSportsPanel initial={sportsHealth} />
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {metrics.map((m) => (
           <div key={m.label} className="rounded-2xl border border-border bg-surface p-4">
@@ -134,8 +148,9 @@ export default async function AdminPage() {
 
       <section className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
         <p>
-          Sports sync: <code className="text-brand-2">POST /api/sports/sync</code>{" "}
-          (admin ή CRON_SECRET)
+          Cron: <code className="text-brand-2">/api/cron/sync-matches</code> ·{" "}
+          <code className="text-brand-2">/api/cron/sync-live</code> ·{" "}
+          <code className="text-brand-2">/api/cron/sync-finalize</code>
         </p>
         <p className="mt-1">
           Realtime: <code className="text-brand-2">npm run realtime</code> · Worker:{" "}

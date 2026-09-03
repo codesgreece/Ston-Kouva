@@ -1,0 +1,78 @@
+{
+  "events": [
+    {
+      "id": 14025123,
+      "slug": "real-madrid-barcelona",
+      "startTimestamp": 1756920000,
+      "homeTeam": {
+        "id": 2829,
+        "name": "Real Madrid",
+        "shortName": "Real Madrid",
+        "slug": "real-madrid",
+        "country": { "alpha2": "ES" }
+      },
+      "awayTeam": {
+        "id": 2817,
+        "name": "Barcelona",
+        "shortName": "Barcelona",
+        "slug": "barcelona",
+        "country": { "alpha2": "ES" }
+      },
+      "status": {
+        "code": 6,
+        "type": "inprogress",
+        "description": "1st half"
+      },
+      "score": { "current": { "home": 1, "away": 0 } },
+      "time": { "minute": 23, "injury": 0 },
+      "tournament": {
+        "name": "LaLiga",
+        "slug": "laliga",
+        "uniqueTournament": {
+          "id": 8,
+          "name": "LaLiga",
+          "slug": "laliga",
+          "category": { "name": "Spain", "slug": "spain" }
+        },
+        "season": { "id": 61627, "name": "LaLiga 25/26" },
+        "roundInfo": { "round": 3, "name": "Round 3" }
+      },
+      "venue": { "name": "Santiago Bernabéu" }
+    },
+    {
+      "id": 14025124,
+      "slug": "olympiacos-panathinaikos",
+      "startTimestamp": 1757006400,
+      "homeTeam": {
+        "id": 3241,
+        "name": "Olympiacos",
+        "shortName": "Olympiacos",
+        "slug": "olympiacos",
+        "country": { "alpha2": "GR" }
+      },
+      "awayTeam": {
+        "id": 3242,
+        "name": "Panathinaikos",
+        "shortName": "Panathinaikos",
+        "slug": "panathinaikos",
+        "country": { "alpha2": "GR" }
+      },
+      "status": {
+        "code": 0,
+        "type": "notstarted",
+        "description": "Not started"
+      },
+      "score": { "current": { "home": 0, "away": 0 } },
+      "tournament": {
+        "name": "Super League",
+        "slug": "super-league",
+        "uniqueTournament": {
+          "id": 185,
+          "name": "Super League 1",
+          "slug": "super-league-1",
+          "category": { "name": "Greece", "slug": "greece" }
+        }
+      }
+    }
+  ]
+}
