@@ -20,7 +20,7 @@ export function formatEventForChat(event: {
     case "substitution":
       return `🔄 Substitution ${event.teamName ?? ""} ${minute}`.trim();
     case "period_end":
-      return event.description?.includes("half")
+      return event.description?.toLowerCase().includes("half")
         ? `⏱️ Half time`
         : `🏁 Full time`;
     default:

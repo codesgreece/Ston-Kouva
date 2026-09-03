@@ -170,13 +170,23 @@ SofaScore → Sports Worker → PostgreSQL → Our API → Users
 
 ## Phase roadmap
 
-1. **Foundation** (τρέχον) — Next.js, Postgres, auth, layout, skeletons
-2. **Sports** — SofaScore adapter, live sync, events
-3. **Match Rooms** — realtime WebSocket chat
-4. **Social** — feed, follows, profiles deep features
-5. **Predictions** — votes, results, reputation
-6. **Moderation** — reports, bans, admin
-7. **Performance** — caching, pagination polish
+1. **Foundation** ✅ — Next.js, Postgres, auth, layout, branding
+2. **Sports** ✅ — SofaScore adapter, sync worker, events/stats cache
+3. **Match Rooms** ✅ — messages, WS realtime server, presence, polling fallback
+4. **Social** ✅ — feed, posts, comments, likes, follows, bookmarks, search
+5. **Predictions** ✅ — create/vote/resolve, reputation accuracy
+6. **Moderation** ✅ — reports, mute/ban, admin APIs/dashboard
+7. **Performance** ✅ — indexes, cursor pagination, in-memory cache, rate limits
+
+### Extra processes
+
+```bash
+npm run sports:worker   # SofaScore → PostgreSQL polling
+npm run realtime        # WebSocket server (set NEXT_PUBLIC_REALTIME_URL)
+```
+
+Manual/cron sync: `POST /api/sports/sync` (admin session ή header `x-cron-secret`).
+
 
 ## Stack
 

@@ -111,7 +111,7 @@ export async function POST(
   const inserted = await query(
     `INSERT INTO messages (room_id, user_id, content, reply_to_message_id)
      VALUES ($1, $2, $3, $4)
-     RETURNING id, content, created_at, message_type`,
+     RETURNING id, content, created_at, message_type, deleted_at`,
     [
       roomId,
       session.user.id,
@@ -129,5 +129,17 @@ export async function POST(
     [roomId],
   );
 
-  return NextResponse.json({ message: inserted.rows[0] }, { status: 201 });
+  const row = inserted.rows[0];
+  return NextResponse.json(
+    {
+      message: {
+        ...row,
+        username: session.user.username,
+        display_name: session.user.displayName,
+        deleted_at: null,
+      },
+      roomId,
+    },
+    { status: 201 },
+  );
 }

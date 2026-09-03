@@ -1,38 +1,9 @@
 import Link from "next/link";
 import { MatchCard } from "@/components/matches/MatchCard";
-import { BucketReaction } from "@/components/ui/Badges";
+import { CreatePostBox, PostCard } from "@/components/social/PostCard";
 import { listMatches } from "@/lib/services/matches";
-import { query } from "@/lib/db";
+import { getCachedHomeFeed } from "@/lib/services/social";
 import { getCurrentSession } from "@/lib/auth";
-
-type FeedPost = {
-  id: string;
-  content: string;
-  created_at: Date;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  like_count: number;
-  comment_count: number;
-  match_id: string | null;
-};
-
-async function getFeedPosts(): Promise<FeedPost[]> {
-  try {
-    const result = await query<FeedPost>(
-      `SELECT p.id, p.content, p.created_at, p.like_count, p.comment_count, p.match_id,
-              u.username, u.display_name, u.avatar_url
-       FROM posts p
-       JOIN users u ON u.id = p.user_id
-       WHERE p.deleted_at IS NULL
-       ORDER BY p.created_at DESC
-       LIMIT 20`,
-    );
-    return result.rows;
-  } catch {
-    return [];
-  }
-}
 
 export default async function HomePage() {
   const session = await getCurrentSession();
@@ -42,7 +13,16 @@ export default async function HomePage() {
   } catch {
     liveMatches = [];
   }
-  const posts = await getFeedPosts();
+
+  let feed: Awaited<ReturnType<typeof getCachedHomeFeed>> = {
+    posts: [],
+    nextCursor: null,
+  };
+  try {
+    feed = await getCachedHomeFeed(session?.user.id);
+  } catch {
+    feed = { posts: [], nextCursor: null };
+  }
 
   return (
     <div className="space-y-8">
@@ -121,9 +101,7 @@ export default async function HomePage() {
                     🔥 {m.homeTeam.flagEmoji} {m.homeTeam.nameEl || m.homeTeam.name} -{" "}
                     {m.awayTeam.flagEmoji} {m.awayTeam.nameEl || m.awayTeam.name}
                   </span>
-                  <span className="text-muted">
-                    {m.room?.memberCount ?? 0} users
-                  </span>
+                  <span className="text-muted">{m.room?.memberCount ?? 0} users</span>
                 </Link>
               </li>
             ))}
@@ -131,43 +109,17 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section>
-        <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl font-bold">
+      <section className="space-y-3">
+        <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">
           SOCIAL FEED
         </h2>
-        {posts.length === 0 ? (
+        {session ? <CreatePostBox /> : null}
+        {feed.posts.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted">
             Ο Κουβάς είναι άδειος από posts. Πες κάτι.
           </p>
         ) : (
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <article
-                key={post.id}
-                className="animate-fade-up rounded-2xl border border-border bg-surface p-4"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-3 text-sm font-bold text-brand">
-                    {post.display_name.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">@{post.username}</p>
-                    <p className="text-xs text-muted">
-                      {new Date(post.created_at).toLocaleString("el-GR")}
-                    </p>
-                  </div>
-                </div>
-                <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{post.content}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
-                  <span>❤️ {post.like_count}</span>
-                  <span>💬 {post.comment_count}</span>
-                  <BucketReaction />
-                  <span>↗ Share</span>
-                  <span>🔖</span>
-                </div>
-              </article>
-            ))}
-          </div>
+          feed.posts.map((post) => <PostCard key={post.id} post={post} />)
         )}
       </section>
     </div>

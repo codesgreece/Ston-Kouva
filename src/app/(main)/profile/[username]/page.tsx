@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { query } from "@/lib/db";
 import { getCurrentSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { FollowButton } from "@/components/social/FollowButton";
 
 type ProfileRow = {
   id: string;
@@ -57,6 +58,15 @@ export default async function ProfilePage({
 
   const isSelf = session?.user.id === profile.id;
 
+  let initiallyFollowing = false;
+  if (session && !isSelf) {
+    const fol = await query(
+      `SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2`,
+      [session.user.id, profile.id],
+    );
+    initiallyFollowing = Boolean(fol.rowCount && fol.rowCount > 0);
+  }
+
   return (
     <div className="space-y-6">
       <header className="rounded-3xl border border-border bg-surface p-5">
@@ -86,12 +96,19 @@ export default async function ProfilePage({
         <div className="mt-4 flex flex-wrap gap-2">
           {!isSelf ? (
             <>
-              <button
-                type="button"
-                className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-[#1a0d00]"
-              >
-                Follow
-              </button>
+              {session ? (
+                <FollowButton
+                  username={profile.username}
+                  initiallyFollowing={initiallyFollowing}
+                />
+              ) : (
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-[#1a0d00]"
+                >
+                  Follow
+                </Link>
+              )}
               <button
                 type="button"
                 className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-muted"

@@ -7,9 +7,11 @@ import { useRouter } from "next/navigation";
 export function RoomComposer({
   matchId,
   loggedIn,
+  onSent,
 }: {
   matchId: string;
   loggedIn: boolean;
+  onSent?: (message: unknown) => void;
 }) {
   const router = useRouter();
   const [content, setContent] = useState("");
@@ -44,6 +46,7 @@ export function RoomComposer({
         return;
       }
       setContent("");
+      onSent?.(data.message);
       router.refresh();
     } catch {
       setError("Κάτι πήγε στραβά");

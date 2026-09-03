@@ -11,7 +11,10 @@
     "test": "tsx --test tests/**/*.test.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "db:reset": "tsx scripts/reset.ts"
+    "db:reset": "tsx scripts/reset.ts",
+    "realtime": "tsx scripts/realtime-server.ts",
+    "sports:worker": "tsx scripts/sports-worker.ts",
+    "sports:sync": "tsx -e \"import('./src/lib/sports/match-sync').then(m=>m.syncLiveMatches().then(console.log))\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -23,6 +26,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "uuid": "^14.0.2",
+    "ws": "^8.21.3",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -34,6 +38,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
