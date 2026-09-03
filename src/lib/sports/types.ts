@@ -16,7 +16,9 @@ export type CompetitionModel = {
   externalSource: string;
   name: string;
   nameEl?: string | null;
+  slug?: string | null;
   countryCode?: string | null;
+  categoryName?: string | null;
   logoUrl?: string | null;
   season?: string | null;
 };
@@ -29,32 +31,55 @@ export type TeamModel = {
   name: string;
   nameEl?: string | null;
   shortName?: string | null;
+  slug?: string | null;
   countryCode?: string | null;
   flagEmoji?: string | null;
   logoUrl?: string | null;
 };
 
 export type MatchStatus =
-  | "scheduled"
+  | "upcoming"
   | "live"
+  | "halftime"
   | "finished"
   | "postponed"
-  | "cancelled"
-  | "interrupted";
+  | "canceled"
+  | "suspended"
+  | "unknown";
 
 export type MatchModel = {
   id?: string;
   sportSlug: string;
+  slug?: string | null;
+  sofascoreEventId: string;
   competitionExternalId?: string | null;
+  competitionName?: string | null;
+  competitionSlug?: string | null;
+  categoryName?: string | null;
+  seasonId?: string | null;
+  roundName?: string | null;
   externalId: string;
   externalSource: string;
   status: MatchStatus;
+  statusType?: string | null;
+  statusCode?: number | null;
+  statusDescription?: string | null;
+  statusPeriod?: string | null;
   startTime?: string | null;
+  startTimestamp?: number | null;
   minute?: number | null;
+  injuryTime?: number | null;
   homeScore: number;
   awayScore: number;
+  homePeriodScore?: Record<string, number> | null;
+  awayPeriodScore?: Record<string, number> | null;
   period?: string | null;
   venue?: string | null;
+  isLive: boolean;
+  isFinished: boolean;
+  isPostponed: boolean;
+  isCanceled: boolean;
+  isUpcoming: boolean;
   homeTeam: TeamModel;
   awayTeam: TeamModel;
   lastSyncedAt?: string | null;
@@ -92,7 +117,18 @@ export interface SportsDataAdapter {
 }
 
 export const POLL_INTERVALS_MS = {
-  scheduled: 5 * 60_000,
-  live: 20_000,
+  upcoming: 15 * 60_000,
+  live: 45_000,
+  halftime: 60_000,
   finished: 0,
 } as const;
+
+export type SyncResult = {
+  synced: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  liveCount: number;
+  errors: string[];
+  durationMs: number;
+};

@@ -39,27 +39,36 @@ export type DbUser = {
 };
 
 export type MatchStatus =
-  | "scheduled"
+  | "upcoming"
   | "live"
+  | "halftime"
   | "finished"
   | "postponed"
-  | "cancelled"
-  | "interrupted";
+  | "canceled"
+  | "suspended"
+  | "unknown";
 
 export type MatchSummary = {
   id: string;
+  slug: string | null;
   status: MatchStatus;
   minute: number | null;
+  injuryTime: number | null;
   homeScore: number;
   awayScore: number;
   startTime: string | null;
   lastSyncedAt: string | null;
+  competitionName: string | null;
+  categoryName: string | null;
+  isLive: boolean;
+  isStale: boolean;
   homeTeam: {
     id: string;
     name: string;
     nameEl: string | null;
     flagEmoji: string | null;
     shortName: string | null;
+    logoUrl: string | null;
   };
   awayTeam: {
     id: string;
@@ -67,10 +76,12 @@ export type MatchSummary = {
     nameEl: string | null;
     flagEmoji: string | null;
     shortName: string | null;
+    logoUrl: string | null;
   };
   room: {
     id: string;
     activeCount: number;
     memberCount: number;
   } | null;
+  activityScore?: number;
 };

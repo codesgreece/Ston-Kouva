@@ -1,10 +1,6 @@
 /**
  * Sports data worker — polls SofaScore → PostgreSQL.
  * npm run sports:worker
- *
- * Live matches: every 20s
- * Scheduled: every 5 min
- * Finished: no live polling
  */
 
 import path from "path";
@@ -13,23 +9,27 @@ import { config } from "dotenv";
 config({ path: path.resolve(process.cwd(), ".env") });
 
 async function main() {
-  // Dynamic import after env load
-  const { syncLiveMatches, syncScheduledMatches, POLL_INTERVALS_MS } =
-    await import("../src/lib/sports/match-sync");
+  const {
+    syncLiveEvents,
+    syncUpcomingWindow,
+    syncFinalize,
+    POLL_INTERVALS_MS,
+  } = await import("../src/lib/sports/match-sync");
 
   console.log("[sports-worker] started", {
     liveMs: POLL_INTERVALS_MS.live,
-    scheduledMs: POLL_INTERVALS_MS.scheduled,
+    upcomingMs: POLL_INTERVALS_MS.upcoming,
   });
 
   let liveBusy = false;
   let schedBusy = false;
+  let finalizeBusy = false;
 
   async function tickLive() {
     if (liveBusy) return;
     liveBusy = true;
     try {
-      const result = await syncLiveMatches("football");
+      const result = await syncLiveEvents("football");
       console.log("[sports-worker] live sync", result);
     } catch (error) {
       console.error("[sports-worker] live error", error);
@@ -42,7 +42,7 @@ async function main() {
     if (schedBusy) return;
     schedBusy = true;
     try {
-      const result = await syncScheduledMatches("football");
+      const result = await syncUpcomingWindow(7, "football");
       console.log("[sports-worker] scheduled sync", result);
     } catch (error) {
       console.error("[sports-worker] scheduled error", error);
@@ -51,10 +51,26 @@ async function main() {
     }
   }
 
-  await tickLive();
+  async function tickFinalize() {
+    if (finalizeBusy) return;
+    finalizeBusy = true;
+    try {
+      const result = await syncFinalize("football");
+      console.log("[sports-worker] finalize sync", result);
+    } catch (error) {
+      console.error("[sports-worker] finalize error", error);
+    } finally {
+      finalizeBusy = false;
+    }
+  }
+
   await tickScheduled();
+  await tickLive();
+  await tickFinalize();
+
   setInterval(tickLive, POLL_INTERVALS_MS.live);
-  setInterval(tickScheduled, POLL_INTERVALS_MS.scheduled);
+  setInterval(tickScheduled, POLL_INTERVALS_MS.upcoming);
+  setInterval(tickFinalize, 5 * 60_000);
 }
 
 main().catch((error) => {

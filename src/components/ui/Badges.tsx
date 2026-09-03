@@ -1,8 +1,20 @@
-export function LiveBadge({ label = "LIVE" }: { label?: string }) {
+export function LiveBadge({
+  label = "LIVE",
+  stale = false,
+}: {
+  label?: string;
+  stale?: boolean;
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-live/15 px-2 py-0.5 text-[11px] font-bold tracking-wide text-live">
-      <span className="live-dot" />
-      {label}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${
+        stale
+          ? "bg-amber-500/15 text-amber-400"
+          : "bg-live/15 text-live"
+      }`}
+    >
+      <span className={stale ? "" : "live-dot"} />
+      {stale ? "LIVE?" : label}
     </span>
   );
 }

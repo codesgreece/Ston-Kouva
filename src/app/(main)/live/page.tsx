@@ -4,7 +4,7 @@ import { listMatches } from "@/lib/services/matches";
 export default async function LivePage() {
   let matches: Awaited<ReturnType<typeof listMatches>> = [];
   try {
-    matches = await listMatches({ status: "live", limit: 30 });
+    matches = await listMatches({ live: true, limit: 30 });
   } catch {
     matches = [];
   }
@@ -19,7 +19,7 @@ export default async function LivePage() {
       </div>
       {matches.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 text-center text-sm text-muted">
-          Δεν παίζει τίποτα τώρα. Για λίγο η μπάλα μας άφησε ήσυχους.
+          Δεν υπάρχουν live αγώνες αυτή τη στιγμή.
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

@@ -14,7 +14,7 @@ export async function GET() {
       await Promise.all([
         query<{ c: string }>(`SELECT COUNT(*)::text AS c FROM users`),
         query<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM matches WHERE status = 'live'`,
+          `SELECT COUNT(*)::text AS c FROM matches WHERE is_live = TRUE AND external_source = 'sofascore'`,
         ),
         query<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM match_rooms WHERE status = 'open'`,

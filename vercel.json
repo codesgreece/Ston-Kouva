@@ -1,5 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    {
+      "path": "/api/cron/sync-matches",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/sync-live",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/sync-finalize",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

@@ -120,7 +120,19 @@ async function main() {
       );
     }
 
-    // Competition
+    const seedDemoMatches = process.env.SEED_DEMO_MATCHES === "true";
+
+    if (!seedDemoMatches) {
+      // Production path: users only, no fake matches
+      await client.query("COMMIT");
+      console.log("Seed complete (users only — no demo matches).");
+      console.log("Demo users: admin, demo_user, football_fan, bettor");
+      console.log("Password: password123");
+      console.log("Set SEED_DEMO_MATCHES=true to create Greece–Spain demo match.");
+      return;
+    }
+
+    // --- Optional dev demo match (SEED_DEMO_MATCHES=true) ---
     const comp = await client.query<{ id: string }>(
       `INSERT INTO competitions (sport_id, external_id, external_source, name, name_el, country_code)
        VALUES ($1, 'demo-intl', 'seed', 'International Friendly', 'Φιλικός Διεθνής', 'INT')
@@ -164,6 +176,8 @@ async function main() {
        )
        ON CONFLICT (external_source, external_id) DO UPDATE SET
          status = 'live',
+         is_live = TRUE,
+         is_upcoming = FALSE,
          minute = 67,
          home_score = 1,
          away_score = 1,

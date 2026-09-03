@@ -1,17 +1,26 @@
 import Link from "next/link";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { CreatePostBox, PostCard } from "@/components/social/PostCard";
-import { listMatches } from "@/lib/services/matches";
+import { listMatches, listTrendingMatches } from "@/lib/services/matches";
 import { getCachedHomeFeed } from "@/lib/services/social";
 import { getCurrentSession } from "@/lib/auth";
 
 export default async function HomePage() {
   const session = await getCurrentSession();
   let liveMatches: Awaited<ReturnType<typeof listMatches>> = [];
+  let upcomingMatches: Awaited<ReturnType<typeof listMatches>> = [];
+  let trendingMatches: Awaited<ReturnType<typeof listTrendingMatches>> = [];
+
   try {
-    liveMatches = await listMatches({ status: "live", limit: 6 });
+    [liveMatches, upcomingMatches, trendingMatches] = await Promise.all([
+      listMatches({ live: true, limit: 6 }),
+      listMatches({ upcoming: true, limit: 6 }),
+      listTrendingMatches(5),
+    ]);
   } catch {
     liveMatches = [];
+    upcomingMatches = [];
+    trendingMatches = [];
   }
 
   let feed: Awaited<ReturnType<typeof getCachedHomeFeed>> = {
@@ -39,6 +48,12 @@ export default async function HomePage() {
             className="rounded-xl bg-live px-4 py-2.5 text-sm font-bold text-white"
           >
             🔴 Δες Live Αγώνες
+          </Link>
+          <Link
+            href="/matches"
+            className="rounded-xl border border-border bg-surface-2 px-4 py-2.5 text-sm font-semibold text-text"
+          >
+            📅 Επερχόμενοι
           </Link>
           <Link
             href="/explore"
@@ -72,7 +87,7 @@ export default async function HomePage() {
         </div>
         {liveMatches.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-sm text-muted">
-            Δεν παίζει τίποτα τώρα. Για λίγο η μπάλα μας άφησε ήσυχους.
+            Δεν υπάρχουν live αγώνες αυτή τη στιγμή.
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -84,22 +99,45 @@ export default async function HomePage() {
       </section>
 
       <section>
+        <div className="mb-3 flex items-end justify-between">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">
+            UPCOMING
+          </h2>
+          <Link href="/matches" className="text-sm text-brand-2">
+            Όλα →
+          </Link>
+        </div>
+        {upcomingMatches.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-sm text-muted">
+            Δεν υπάρχουν επερχόμενοι αγώνες αυτή τη στιγμή.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {upcomingMatches.map((match) => (
+              <MatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
         <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl font-bold">
-          TRENDING
+          TRENDING MATCHES
         </h2>
-        {liveMatches.length === 0 ? (
+        {trendingMatches.length === 0 ? (
           <p className="text-sm text-muted">Δεν υπάρχει ακόμα κίνηση στους αγώνες.</p>
         ) : (
           <ul className="space-y-2">
-            {liveMatches.slice(0, 3).map((m) => (
+            {trendingMatches.map((m) => (
               <li key={m.id}>
                 <Link
                   href={`/match/${m.id}`}
                   className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-sm transition hover:border-brand/40"
                 >
                   <span>
-                    🔥 {m.homeTeam.flagEmoji} {m.homeTeam.nameEl || m.homeTeam.name} -{" "}
-                    {m.awayTeam.flagEmoji} {m.awayTeam.nameEl || m.awayTeam.name}
+                    🔥 {m.homeTeam.nameEl || m.homeTeam.name} -{" "}
+                    {m.awayTeam.nameEl || m.awayTeam.name}
+                    {m.isLive ? " · LIVE" : ""}
                   </span>
                   <span className="text-muted">{m.room?.memberCount ?? 0} users</span>
                 </Link>
